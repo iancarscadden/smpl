@@ -1,0 +1,48 @@
+
+class Person {
+    name = ""
+    age = ""
+    height = ""
+
+    func get_height {
+        return height
+    }
+    func get_age {
+        return age
+    }
+    func get_name {
+        return name
+    }
+    func print_whole {
+        print("Hello, my name is " + name + " I am " + age + " years old." + " My height is " + height ".")
+    }
+}
+
+bob = new Person
+bob.name = "Bob"
+bob.age = "57"
+bob.height = "5'7"
+
+bob.print_whole()
+
+class Animal {
+    species = ""
+    sound = ""
+
+    func speak {
+        print("The " + species + " says " + sound)
+    }
+}
+
+dog = new Animal
+dog.species = "dog"
+dog.sound = "woof"
+dog.speak()
+
+cat = new Animal
+cat.species = "cat"
+cat.sound = "meow"
+cat.speak()
+
+
+

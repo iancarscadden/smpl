@@ -1,0 +1,22 @@
+# Define a function to calculate the sum of two numbers
+func add using a, b {
+    return a + b
+}
+
+# Call the add function
+result_add = add(10, 20)
+print("Addition Result: " + result_add)  # Should print 30
+
+
+# Define a function to check if a number is even
+func is_even using number {
+    if number % 2 == 0 {
+        return true
+    } else {
+        return false
+    }
+}
+
+# Test the is_even function
+even_check = is_even(8)
+print("Is 8 even? " + even_check)  # Should print true

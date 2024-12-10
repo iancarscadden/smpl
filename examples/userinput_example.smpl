@@ -1,0 +1,12 @@
+// Example of getting user input in smpl
+
+print("How many times would you like to print 'Hello World'?")
+a = get_input()
+
+for i from 1 to a {
+   print("Hello World!")
+}
+
+print("What is you name?")
+username = get_input()
+print("Nice to meet you, " + username + "!")

@@ -5,7 +5,14 @@ import smpl_lists  # Import the smpl_lists module
 
 def get_input_func():
     try:
-        return input()
+        user_input = input()
+        # Try to convert to int or float if possible
+        if user_input.isdigit():
+            return int(user_input)
+        try:
+            return float(user_input)
+        except ValueError:
+            return user_input  # Return as a string if it can't be converted
     except EOFError:
         return ""
 
@@ -26,6 +33,7 @@ RESERVED_KEYWORDS = {'print', 'if', 'elif', 'else', 'for', 'while', 'func', 'ret
 def tokenize(expression):
     token_specification = [
         ('NUMBER',   r'\d+(\.\d+)?'),
+        ('BOOLEAN',  r'true|false'),
         ('OPERATOR', r'==|!=|<=|>=|and|or|<|>|\+|\-|\*|\/|\%|\^'),
         ('DOT',      r'\.'),
         ('ELIF',     r'elif'),
@@ -52,6 +60,8 @@ def tokenize(expression):
         value = mo.group(kind)
         if kind == 'NUMBER':
             tokens.append({'type': 'NUMBER', 'value': float(value) if '.' in value else int(value)})
+        elif kind == 'BOOLEAN':
+            tokens.append({'type': 'BOOLEAN', 'value': True if value == 'true' else False})
         elif kind == 'STRING':
             tokens.append({'type': 'STRING', 'value': value[1:-1]})
         elif kind == 'IDENT':
@@ -173,6 +183,9 @@ class Parser:
         elif tok['type'] == 'STRING':
             self.consume('STRING')
             return ('string', tok['value'])
+        elif tok['type'] == 'BOOLEAN':
+            self.consume('BOOLEAN')
+            return ('boolean', tok['value'])
         elif tok['type'] == 'LPAREN':
             self.consume('LPAREN')
             node = self.parse_expression()
@@ -203,8 +216,6 @@ class Parser:
                 self.consume('RPAREN')
                 return ('call', chain, args)
             else:
-                # We try parsing the first argument carefully
-                # If parsing fails, we fallback
                 original_pos = self.pos
                 try:
                     first_arg = self.parse_expression()
@@ -215,18 +226,13 @@ class Parser:
                     if not self.match('RPAREN'):
                         raise ValueError("Missing closing parenthesis in function call")
                     self.consume('RPAREN')
-                except Exception as e:
+                except Exception:
                     # Fallback: consume until RPAREN to recover
-                    # Reset args to empty or partial if desired
                     args = []
-                    # Move forward until we find RPAREN or end
                     while self.current_token() and self.current_token()['type'] != 'RPAREN':
                         self.pos += 1
                     if self.match('RPAREN'):
                         self.consume('RPAREN')
-                    # We won't raise an error; we just return the call with no args
-                    # or partial args. Let's return no args to avoid confusion.
-                    # You could print a warning here if desired.
                 return ('call', chain, args)
         else:
             return ('chain', chain)
@@ -237,6 +243,8 @@ def evaluate_ast(node, varmap):
     if ntype == 'number':
         return node[1]
     elif ntype == 'string':
+        return node[1]
+    elif ntype == 'boolean':
         return node[1]
     elif ntype == 'chain':
         return resolve_chain(node[1], varmap)
@@ -330,6 +338,9 @@ def call_function_or_method(target, args, varmap):
 def eval_binop(op, left, right):
     try:
         if op == '+':
+            # If either operand is a string, perform string concatenation
+            if isinstance(left, str) or isinstance(right, str):
+                return str(left) + str(right)
             return left + right
         elif op == '-':
             return left - right
@@ -354,9 +365,9 @@ def eval_binop(op, left, right):
         elif op == '>=':
             return left >= right
         elif op == 'and':
-            return left and right
+            return bool(left and right)
         elif op == 'or':
-            return left or right
+            return bool(left or right)
         else:
             raise ValueError(f"Unsupported operator: {op}")
     except ZeroDivisionError:
@@ -450,7 +461,7 @@ def process_line(line, varmap, line_number):
                 print(f"Error on line {line_number}: '{obj_name}' is not an object with methods.")
                 sys.exit(1)
 
-        result = call_function_or_method(target, args, varmap)
+        call_function_or_method(target, args, varmap)
         return
 
     object_prop_match = re.match(r'^(\w+)\.(\w+)\s*=\s*(.+)$', line)
@@ -562,8 +573,10 @@ def interpreter(lines, varmap, start_index=0):
                         class_properties[prop_name] = int(prop_value)
                     elif re.match(r'^\d+\.\d+$', prop_value):
                         class_properties[prop_name] = float(prop_value)
+                    elif prop_value in ['true', 'false']:
+                        class_properties[prop_name] = True if prop_value == 'true' else False
                     else:
-                        class_properties[prop_name] = ""
+                        class_properties[prop_name] = prop_value
                     i += 1
             CLASSES[class_name] = {
                 'properties': class_properties,

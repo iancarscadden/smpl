@@ -1,0 +1,31 @@
+// Demo of loops in SMPL
+
+// For loop
+print("For Loop:")
+for i from 1 to 5 {
+    print("Iteration: " + i)
+}
+
+// For loop with variable bounding
+a = 1
+b = 10
+
+for i from a to b {
+    print(i)
+}
+
+// While loop
+print("While Loop:")
+count = 1
+while count <= 5 {
+    print("Count: " + count)
+    count = count + 1
+}
+
+// Nested loops
+print("Nested Loops:")
+for outer from 1 to 3 {
+    for inner from 1 to 2 {
+        print("Outer: " + outer + ", Inner: " + inner)
+    }
+}
