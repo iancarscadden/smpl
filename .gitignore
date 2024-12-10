@@ -1,0 +1,47 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+*.egg-info/
+.eggs/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.coverage
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.cache
+.pytest_cache/
+
+# MyPy cache
+.mypy_cache/
+
+# Environments
+.venv/
+venv/
+ENV/
+env/
+venv.bak/
+venv-old/
+
+# IDE / editor settings
+.vscode/
+.idea/
+
+# MacOS files
+.DS_Store
