@@ -23,6 +23,12 @@
 
 ### Installation
 
+First clone this repositry into your IDE using this link:
+
+```bash
+https://github.com/iancarscadden/smpl.git
+```
+
 You can install SMPL via `pip`. From the project directory (where `setup.py` is located), run:
 
 ```bash
@@ -40,10 +46,10 @@ smpl <filename.smpl>
 To verify that the `smpl` command is available, run:
 
 ```bash
-smpl --help
+smpl
 ```
 
-If installed correctly, you'll see usage information and a brief help message.
+If installed correctly, you'll see `Usage: smpl <filename.smpl>`
 
 ## Usage
 
@@ -122,7 +128,7 @@ If installed correctly, you'll see usage information and a brief help message.
 1. **Cloning the Repository**:
 
    ```bash
-   git clone https://github.com/<your-username>/<your-repo>.git
+   git clone https://github.com/iancarscadden/smpl.git
    cd <your-repo>
    ```
 
