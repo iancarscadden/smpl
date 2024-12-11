@@ -23,7 +23,7 @@
 
 ### Installation
 
-You can install SMPL via `pip`. From the project directory (where `setup.py` and `pyproject.toml` are located), run:
+You can install SMPL via `pip`. From the project directory (where `setup.py` is located), run:
 
 ```bash
 pip install .
