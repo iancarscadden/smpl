@@ -1,18 +1,35 @@
+
+# SMPL Language Interpreter
+
+# This file implements the SMPL language interpreter.
+# It includes:
+# - Tokenization
+# - Parsing
+# - AST evaluation
+# - Built-in functions and classes
+# - Execution model with variables, classes, functions, loops
+
 import sys
 import re
 import math
 import smpl_lists  # Import the smpl_lists module
 
+###
+# Built-in Functions
+###
 def get_input_func():
+    # Attempt to read user input and convert to int/float if possible
     try:
         user_input = input()
-        # Try to convert to int or float if possible
+        # If entire input is a digit, convert to int
         if user_input.isdigit():
             return int(user_input)
+        # If not digit, try float
         try:
             return float(user_input)
         except ValueError:
-            return user_input  # Return as a string if it can't be converted
+            # If neither int nor float, return as string
+            return user_input
     except EOFError:
         return ""
 
@@ -25,33 +42,42 @@ FUNCTIONS = {
     'get_input': get_input_func,
 }
 
-FUNCTIONS_USER = {}
-CLASSES = {}
+FUNCTIONS_USER = {}  # User-defined functions
+CLASSES = {}          # User-defined classes
 
+# Reserved keywords for the language
 RESERVED_KEYWORDS = {'print', 'if', 'elif', 'else', 'for', 'while', 'func', 'return', 'class', 'new', 'list'}
 
+###
+# Tokenization
+###
+# Convert the input text into a list of tokens.
+
 def tokenize(expression):
+    # Define token types and their regex
     token_specification = [
-        ('NUMBER',   r'\d+(\.\d+)?'),
-        ('BOOLEAN',  r'true|false'),
-        ('OPERATOR', r'==|!=|<=|>=|and|or|<|>|\+|\-|\*|\/|\%|\^'),
-        ('DOT',      r'\.'),
-        ('ELIF',     r'elif'),
-        ('ELSE',     r'else'),
-        ('IF',       r'if'),
-        ('CLASS',    r'class'),
-        ('NEW',      r'new'),
-        ('LIST',     r'list'),
-        ('STRING',   r'"[^"]*"'),
-        ('IDENT',    r'[A-Za-z_]\w*'),
-        ('LPAREN',   r'\('),
-        ('RPAREN',   r'\)'),
-        ('COMMA',    r','),
-        ('SKIP',     r'[ \t]+'),
-        ('MISMATCH', r'.'),
+        ('NUMBER',   r'\d+(\.\d+)?'),               # Numbers (int or float)
+        ('BOOLEAN',  r'true|false'),                # Boolean literals
+        ('OPERATOR', r'==|!=|<=|>=|and|or|<|>|\+|\-|\*|\/|\%|\^'), # Operators
+        ('DOT',      r'\.'),                       # Dot for property access
+        ('ELIF',     r'elif'),                     # Elif keyword
+        ('ELSE',     r'else'),                     # Else keyword
+        ('IF',       r'if'),                       # If keyword
+        ('CLASS',    r'class'),                    # Class keyword
+        ('NEW',      r'new'),                      # New keyword
+        ('LIST',     r'list'),                     # List keyword
+        ('STRING',   r'"[^"]*"'),                  # String literals
+        ('IDENT',    r'[A-Za-z_]\w*'),             # Identifiers
+        ('LPAREN',   r'\('),                       # Left parenthesis
+        ('RPAREN',   r'\)'),                       # Right parenthesis
+        ('COMMA',    r','),                        # Comma
+        ('SKIP',     r'[ \t]+'),                   # Spaces/tabs to skip
+        ('MISMATCH', r'.'),                        # Any other single char (error)
     ]
+    # Build the combined regex
     tok_regex = '|'.join('(?P<%s>%s)' % pair for pair in token_specification)
     get_token = re.compile(tok_regex).match
+
     pos = 0
     tokens = []
     mo = get_token(expression, pos)
@@ -59,12 +85,15 @@ def tokenize(expression):
         kind = mo.lastgroup
         value = mo.group(kind)
         if kind == 'NUMBER':
+            # Convert to float if '.' in value, else int
             tokens.append({'type': 'NUMBER', 'value': float(value) if '.' in value else int(value)})
         elif kind == 'BOOLEAN':
             tokens.append({'type': 'BOOLEAN', 'value': True if value == 'true' else False})
         elif kind == 'STRING':
+            # Strip surrounding quotes
             tokens.append({'type': 'STRING', 'value': value[1:-1]})
         elif kind == 'IDENT':
+            # Check if IDENT is a reserved keyword
             if value in RESERVED_KEYWORDS:
                 tokens.append({'type': value.upper(), 'value': value})
             else:
@@ -82,12 +111,19 @@ def tokenize(expression):
         elif kind == 'COMMA':
             tokens.append({'type': 'COMMA', 'value': value})
         elif kind == 'SKIP':
+            # Just skip whitespace
             pass
         elif kind == 'MISMATCH':
+            # Unexpected character
             raise ValueError(f'Unexpected character "{value}" in expression.')
         pos = mo.end()
         mo = get_token(expression, pos)
     return tokens
+
+###
+# Parser
+###
+# Transforms a token list into an Abstract Syntax Tree (AST).
 
 class Parser:
     def __init__(self, tokens):
@@ -95,11 +131,13 @@ class Parser:
         self.pos = 0
 
     def current_token(self):
+        # Return the current token or None if end of list
         if self.pos < len(self.tokens):
             return self.tokens[self.pos]
         return None
 
     def consume(self, ttype=None):
+        # Consume a token, optionally checking its type
         tok = self.current_token()
         if tok is None:
             raise ValueError("Unexpected end of input")
@@ -109,6 +147,7 @@ class Parser:
         return tok
 
     def match(self, ttype, value=None):
+        # Check if current token matches a type (and optional value)
         tok = self.current_token()
         if tok and tok['type'] == ttype:
             if value is not None:
@@ -117,15 +156,18 @@ class Parser:
         return False
 
     def match_op(self, ops):
+        # Check if current token is an operator and in a given list
         tok = self.current_token()
         if tok and tok['type'] == 'OPERATOR':
             return tok['value'] in ops
         return False
 
     def parse_expression(self):
+        # Parse a full expression, starting with logical operators
         return self.parse_logical_expr()
 
     def parse_logical_expr(self):
+        # Parse 'and'/'or' operators
         node = self.parse_equality_expr()
         while self.match_op(['and','or']):
             op = self.consume('OPERATOR')
@@ -134,6 +176,7 @@ class Parser:
         return node
 
     def parse_equality_expr(self):
+        # Parse '==' and '!='
         node = self.parse_comparison_expr()
         while self.match_op(['==','!=']):
             op = self.consume('OPERATOR')
@@ -142,6 +185,7 @@ class Parser:
         return node
 
     def parse_comparison_expr(self):
+        # Parse comparison operators: >, >=, <, <=
         node = self.parse_additive_expr()
         while self.match_op(['>','>=','<','<=']):
             op = self.consume('OPERATOR')
@@ -150,6 +194,7 @@ class Parser:
         return node
 
     def parse_additive_expr(self):
+        # Parse '+' and '-'
         node = self.parse_multiplicative_expr()
         while self.match_op(['+','-']):
             op = self.consume('OPERATOR')
@@ -158,6 +203,7 @@ class Parser:
         return node
 
     def parse_multiplicative_expr(self):
+        # Parse '*', '/', '%'
         node = self.parse_unary_expr()
         while self.match_op(['*','/','%']):
             op = self.consume('OPERATOR')
@@ -166,6 +212,7 @@ class Parser:
         return node
 
     def parse_unary_expr(self):
+        # Parse unary operator '-' if present
         if self.match_op(['-']):
             op = self.consume('OPERATOR')
             node = self.parse_unary_expr()
@@ -173,6 +220,7 @@ class Parser:
         return self.parse_primary()
 
     def parse_primary(self):
+        # Parse primary units: numbers, strings, booleans, parentheses, identifiers
         tok = self.current_token()
         if tok is None:
             raise ValueError("Unexpected end of input in primary")
@@ -199,15 +247,17 @@ class Parser:
             raise ValueError(f"Unexpected token in primary: {tok}")
 
     def parse_identifier_call(self):
+        # Parse identifiers which can be variable references or function calls (chain)
         first = self.consume('IDENT')
         chain = [first['value']]
 
+        # Parse any chained properties using '.'
         while self.match('DOT'):
             self.consume('DOT')
             attr = self.consume('IDENT')
             chain.append(attr['value'])
 
-        # Check if '(' follows for a function call
+        # Check if this is a function call: '(' following the identifier/chain
         if self.match('LPAREN'):
             self.consume('LPAREN')
             args = []
@@ -227,7 +277,7 @@ class Parser:
                         raise ValueError("Missing closing parenthesis in function call")
                     self.consume('RPAREN')
                 except Exception:
-                    # Fallback: consume until RPAREN to recover
+                    # If parsing arguments fails, consume until RPAREN
                     args = []
                     while self.current_token() and self.current_token()['type'] != 'RPAREN':
                         self.pos += 1
@@ -236,6 +286,11 @@ class Parser:
                 return ('call', chain, args)
         else:
             return ('chain', chain)
+
+###
+# AST Evaluation
+###
+# Evaluate the AST with a given variable map
 
 def evaluate_ast(node, varmap):
     ntype = node[0]
@@ -270,6 +325,7 @@ def evaluate_ast(node, varmap):
         raise ValueError(f"Unknown AST node type: {ntype}")
 
 def resolve_chain(chain, varmap):
+    # Resolve a chain of identifiers and properties
     base = chain[0]
     if base in varmap:
         current = varmap[base]
@@ -281,6 +337,7 @@ def resolve_chain(chain, varmap):
 
     for part in chain[1:]:
         if isinstance(current, dict) and '__class__' in current:
+            # Access property or method of a class instance
             class_name = current['__class__']
             class_def = CLASSES.get(class_name, None)
             if not class_def:
@@ -290,10 +347,12 @@ def resolve_chain(chain, varmap):
                 current = current[part]
             else:
                 if part in class_def['methods']:
+                    # Return a tuple representing a class method call
                     return ('class_method', class_name, current, part)
                 else:
                     raise ValueError(f"'{part}' is not a property or method of instance of class '{class_name}'")
         else:
+            # Access attribute of a Python object
             if not hasattr(current, part):
                 raise ValueError(f"Object of type '{type(current).__name__}' has no attribute '{part}'.")
             current = getattr(current, part)
@@ -301,24 +360,30 @@ def resolve_chain(chain, varmap):
     return current
 
 def call_function_or_method(target, args, varmap):
+    # Call a function or class method
     if isinstance(target, tuple) and target[0] == 'class_method':
+        # Class method call
         _, class_name, instance_obj, method_name = target
         class_def = CLASSES[class_name]
         method_body = class_def['methods'][method_name]
         method_varmap = varmap.copy()
+        # Inherit instance properties into method varmap
         for k, v in instance_obj.items():
             method_varmap[k] = v
         return_flag, return_value = interpreter(method_body, method_varmap)
+        # Update instance properties after method
         for prop in class_def['properties']:
             if prop in method_varmap:
                 instance_obj[prop] = method_varmap[prop]
         return return_value if return_flag else None
 
     if isinstance(target, str):
+        # Check built-ins first
         if target in FUNCTIONS:
             func = FUNCTIONS[target]
             return func(*args)
         elif target in FUNCTIONS_USER:
+            # User-defined function call
             func_def = FUNCTIONS_USER[target]
             func_varmap = varmap.copy()
             params = func_def['params']
@@ -331,14 +396,16 @@ def call_function_or_method(target, args, varmap):
         else:
             raise ValueError(f"Undefined function: {target}")
     else:
+        # If target is a callable Python object
         if not callable(target):
             raise ValueError("Attempted to call a non-callable object.")
         return target(*args)
 
 def eval_binop(op, left, right):
+    # Evaluate binary operations
     try:
         if op == '+':
-            # If either operand is a string, perform string concatenation
+            # If either operand is string, perform concatenation
             if isinstance(left, str) or isinstance(right, str):
                 return str(left) + str(right)
             return left + right
@@ -374,6 +441,7 @@ def eval_binop(op, left, right):
         raise ValueError('Division by zero.')
 
 def eval_expr(expression, varmap):
+    # Preprocess certain English-like phrases
     expression = re.sub(r'\bnot\s+equal\s+to\b', '!=', expression)
     expression = re.sub(r'\bequals\b', '==', expression)
     tokens = tokenize(expression)
@@ -381,7 +449,12 @@ def eval_expr(expression, varmap):
     ast = parser.parse_expression()
     return evaluate_ast(ast, varmap)
 
+###
+# Helper functions for block parsing
+###
+
 def get_block(lines, start_index):
+    # Extract a block of code enclosed in braces { ... }
     block = []
     index = start_index + 1
     open_braces = 1
@@ -400,7 +473,14 @@ def get_block(lines, start_index):
         sys.exit(1)
     return block, index
 
+###
+# Line-by-line processing
+###
+
 def process_line(line, varmap, line_number):
+    # Process a single line of code (assignment, print, function call, etc.)
+
+    # Handle list declarations
     if line.startswith("list"):
         match = re.match(r'^list\s+(\w+)\s*=\s*\((.*?)\)$', line)
         if not match:
@@ -420,6 +500,7 @@ def process_line(line, varmap, line_number):
         varmap[var_name] = list_obj
         return
 
+    # Handle print statements
     if line.startswith("print"):
         try:
             expression = re.search(r'\((.*?)\)', line).group(1).strip()
@@ -430,6 +511,7 @@ def process_line(line, varmap, line_number):
         print(value)
         return
 
+    # Handle method calls: obj.method(args)
     method_call_match = re.match(r'^(\w+)\.(\w+)\((.*?)\)$', line)
     if method_call_match:
         obj_name, method_name, arg_str = method_call_match.groups()
@@ -440,6 +522,7 @@ def process_line(line, varmap, line_number):
         args = []
         if arg_str.strip():
             args = [eval_expr(arg.strip(), varmap) for arg in arg_str.split(',')]
+        # If it's a class instance or a built-in List
         if isinstance(obj, dict) and '__class__' in obj:
             class_name = obj['__class__']
             class_def = CLASSES.get(class_name, None)
@@ -460,10 +543,10 @@ def process_line(line, varmap, line_number):
             else:
                 print(f"Error on line {line_number}: '{obj_name}' is not an object with methods.")
                 sys.exit(1)
-
         call_function_or_method(target, args, varmap)
         return
 
+    # Handle object property assignments: obj.prop = expr
     object_prop_match = re.match(r'^(\w+)\.(\w+)\s*=\s*(.+)$', line)
     if object_prop_match:
         obj_name, prop_name, expr = object_prop_match.groups()
@@ -472,6 +555,7 @@ def process_line(line, varmap, line_number):
             sys.exit(1)
         obj = varmap[obj_name]
         if isinstance(obj, smpl_lists.List):
+            # Cannot directly assign to list items with '='
             print(f"Error on line {line_number}: Cannot directly assign to list items. Use 'set' method.")
             sys.exit(1)
         elif isinstance(obj, dict) and '__class__' in obj:
@@ -483,12 +567,14 @@ def process_line(line, varmap, line_number):
             sys.exit(1)
         return
 
+    # Handle variable assignments: var = expr
     var_assign_match = re.match(r'^(\w+)\s*=\s*(.+)$', line)
     if var_assign_match:
         var, expr = var_assign_match.groups()
         var = var.strip()
         expr = expr.strip().rstrip(';')
 
+        # Handle 'new' object creation
         if expr.startswith("new "):
             class_name = expr[4:].strip()
             if class_name == "List":
@@ -497,6 +583,7 @@ def process_line(line, varmap, line_number):
             elif class_name in CLASSES:
                 class_def = CLASSES[class_name]
                 obj = {'__class__': class_name}
+                # Initialize properties with defaults
                 for prop, default in class_def['properties'].items():
                     obj[prop] = default
                 varmap[var] = obj
@@ -505,6 +592,7 @@ def process_line(line, varmap, line_number):
                 sys.exit(1)
             return
 
+        # Handle inline list declaration as assignment
         list_declaration_match = re.match(r'^list\s+(\w+)\s*=\s*\((.*?)\)$', expr)
         if list_declaration_match:
             var_name, init_values = list_declaration_match.groups()
@@ -520,11 +608,18 @@ def process_line(line, varmap, line_number):
             varmap[var_name] = list_obj
             return
 
+        # Regular variable assignment with evaluated expression
         varmap[var] = eval_expr(expr, varmap)
         return
 
+    # If we reach here the statement is undefined
     print(f"Error on line {line_number}: Undefined statement '{line}'.")
     sys.exit(1)
+
+###
+# Interpreter Execution Model
+###
+# Interpret lines of code, executing statements as we go.
 
 def interpreter(lines, varmap, start_index=0):
     index = start_index
@@ -532,10 +627,12 @@ def interpreter(lines, varmap, start_index=0):
         line = lines[index].strip()
         current_line_number = index + 1
 
+        # Skip empty lines or comments
         if not line or line.startswith('//') or line.startswith('#'):
             index += 1
             continue
 
+        # Class definition
         if line.startswith('class'):
             match = re.match(r'^class\s+(\w+)\s*\{', line)
             if not match:
@@ -552,6 +649,7 @@ def interpreter(lines, varmap, start_index=0):
                     i += 1
                     continue
                 if class_line.startswith('func'):
+                    # Parse method definition in class
                     method_match = re.match(r'^func\s+(\w+)\s*\{', class_line)
                     if not method_match:
                         print(f"Error on line {current_line_number}: Invalid method definition syntax in class '{class_name}'.")
@@ -561,6 +659,7 @@ def interpreter(lines, varmap, start_index=0):
                     class_methods[method_name] = method_body
                     i = method_block_end + 1
                 else:
+                    # Parse property definition in class
                     prop_match = re.match(r'^(\w+)\s*=\s*(.+)$', class_line)
                     if not prop_match:
                         print(f"Error on line {current_line_number}: Invalid property definition in class '{class_name}'.")
@@ -585,6 +684,7 @@ def interpreter(lines, varmap, start_index=0):
             index = block_end_index + 1
             continue
 
+        # Function definition
         if line.startswith('func'):
             match = re.match(r'^func\s+(\w+)(?:\s+using\s+([\w\s,]+))?\s*\{', line)
             if not match:
@@ -598,11 +698,13 @@ def interpreter(lines, varmap, start_index=0):
             index = block_end_index + 1
             continue
 
+        # return statement
         if line.startswith('return'):
             return_expr = line[len('return'):].strip()
             return_value = eval_expr(return_expr, varmap)
             return True, return_value
 
+        # if/elif/else
         if line.startswith('if'):
             conditions = []
             blocks = []
@@ -617,6 +719,7 @@ def interpreter(lines, varmap, start_index=0):
             conditions.append(condition_result)
             blocks.append(block)
             index = block_end_index + 1
+            # Handle subsequent elif/else blocks
             while index < len(lines):
                 next_line = lines[index].strip()
                 if next_line.startswith('elif'):
@@ -644,6 +747,7 @@ def interpreter(lines, varmap, start_index=0):
                         sys.exit(1)
                 else:
                     break
+            # Execute first block whose condition is True
             for cond, blk in zip(conditions, blocks):
                 if cond:
                     return_flag, return_value = interpreter(blk, varmap)
@@ -653,9 +757,11 @@ def interpreter(lines, varmap, start_index=0):
             continue
 
         if line.startswith('elif') or line.startswith('else'):
+            # elif/else without preceding if
             print(f"Error on line {current_line_number}: '{line.split()[0]}' without preceding 'if'.")
             sys.exit(1)
 
+        # while loop
         if line.startswith('while'):
             try:
                 match = re.match(r'while\s+(.+)', line)
@@ -672,6 +778,7 @@ def interpreter(lines, varmap, start_index=0):
                 sys.exit(1)
 
             block, block_end_index = get_block(lines, index)
+            # Execute while condition is True
             while eval_expr(condition, varmap):
                 return_flag, return_value = interpreter(block, varmap)
                 if return_flag:
@@ -679,6 +786,7 @@ def interpreter(lines, varmap, start_index=0):
             index = block_end_index + 1
             continue
 
+        # for loop
         if line.startswith('for'):
             try:
                 match = re.match(r'for\s+(\w+)\s+from\s+(.*?)\s+to\s+(.*)', line)
@@ -709,6 +817,7 @@ def interpreter(lines, varmap, start_index=0):
             index = block_end_index + 1
             continue
 
+        # If line matches no special forms, try process_line for assignments, prints, etc.
         if (line.startswith('print') or
             re.match(r'^\w+\.\w+\s*=\s*.+$', line) or
             re.match(r'^\w+\.\w+\(.*\)$', line) or
@@ -718,10 +827,15 @@ def interpreter(lines, varmap, start_index=0):
             index += 1
             continue
 
+        # If no pattern matched
         print(f"Error on line {current_line_number}: Undefined statement '{line}'.")
         sys.exit(1)
 
     return False, None
+
+###
+# Entry point functions
+###
 
 def main(filename):
     varmap = {}
